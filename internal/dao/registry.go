@@ -443,10 +443,12 @@ func extractMeta(o runtime.Object) (metav1.APIResource, []error) {
 	m.Name, errs = extractStr(meta, "name", errs)
 
 	m.Group, errs = extractStr(spec, "group", errs)
-	versions, errs := extractSlice(spec, "versions", errs)
-	if len(versions) > 0 {
-		m.Version = versions[0]
-	}
+
+	var versions []interface{}
+	versions, errs = extractInterfaceSlice(spec, "versions", errs)
+	var servedVersions []string
+	servedVersions, errs = getServedVersions(versions, errs)
+	m.Version = servedVersions[0]
 
 	var scope string
 	scope, errs = extractStr(spec, "scope", errs)
@@ -458,7 +460,7 @@ func extractMeta(o runtime.Object) (metav1.APIResource, []error) {
 	m.Kind, errs = extractStr(names, "kind", errs)
 	m.SingularName, errs = extractStr(names, "singular", errs)
 	m.Name, errs = extractStr(names, "plural", errs)
-	m.ShortNames, errs = extractSlice(names, "shortNames", errs)
+	m.ShortNames, errs = extractStrSlice(names, "shortNames", errs)
 
 	return m, errs
 }
@@ -467,7 +469,20 @@ func isNamespaced(scope string) bool {
 	return scope == "Namespaced"
 }
 
-func extractSlice(m map[string]interface{}, n string, errs []error) ([]string, []error) {
+func extractInterfaceSlice(m map[string]interface{}, n string, errs []error) ([]interface{}, []error) {
+	if m[n] == nil {
+		return nil, errs
+	}
+
+	ii, ok := m[n].([]interface{})
+	if !ok {
+		return nil, append(errs, fmt.Errorf("failed to extract slice %s -- %#v", n, m))
+	}
+
+	return ii, errs
+}
+
+func extractStrSlice(m map[string]interface{}, n string, errs []error) ([]string, []error) {
 	if m[n] == nil {
 		return nil, errs
 	}
@@ -510,10 +525,40 @@ func extractStr(m map[string]interface{}, n string, errs []error) (string, []err
 	return s, errs
 }
 
+func extractBool(m map[string]interface{}, n string, errs []error) (bool, []error) {
+	b, ok := m[n].(bool)
+	if !ok {
+		return b, append(errs, fmt.Errorf("failed to extract bool %s", n))
+	}
+	return b, errs
+}
+
 func extractMap(m map[string]interface{}, n string, errs []error) (map[string]interface{}, []error) {
 	v, ok := m[n].(map[string]interface{})
 	if !ok {
 		return v, append(errs, fmt.Errorf("failed to extract field %s", n))
 	}
 	return v, errs
+}
+
+func getServedVersions(versions []interface{}, errs []error) ([]string, []error) {
+	vs := make([]string, 0)
+	for _, vi := range versions {
+		version, ok := vi.(map[string]interface{})
+
+		if !ok {
+			return nil, append(errs, fmt.Errorf("failed to extract version %#v", vi))
+		}
+
+		var served bool
+		served, errs = extractBool(version, "served", errs)
+
+		if served {
+			var name string
+			name, errs = extractStr(version, "name", errs)
+			vs = append(vs, name)
+		}
+	}
+
+	return vs, errs
 }

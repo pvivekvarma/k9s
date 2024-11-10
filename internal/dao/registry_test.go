@@ -30,7 +30,36 @@ func TestExtractMeta(t *testing.T) {
 	assert.Equal(t, vv, m.Verbs)
 }
 
-func TestExtractSlice(t *testing.T) {
+func TestExtractInterfaceSlice(t *testing.T) {
+	uu := map[string]struct {
+		m  map[string]interface{}
+		n  string
+		nn []interface{}
+		ee []error
+	}{
+		"plain": {
+			m:  map[string]interface{}{"versions": []interface{}{map[string]interface{}{"name": "v1alpha1", "served": false}, map[string]interface{}{"name": "v1beta1", "served": true}}},
+			n:  "versions",
+			nn: []interface{}{map[string]interface{}{"name": "v1alpha1", "served": false}, map[string]interface{}{"name": "v1beta1", "served": true}},
+		},
+		"empty": {
+			m: map[string]interface{}{},
+			n: "versions",
+		},
+	}
+
+	var ee []error
+	for k := range uu {
+		u := uu[k]
+		t.Run(k, func(t *testing.T) {
+			ss, e := extractInterfaceSlice(u.m, u.n, ee)
+			assert.Equal(t, u.ee, e)
+			assert.Equal(t, u.nn, ss)
+		})
+	}
+}
+
+func TestExtractStrSlice(t *testing.T) {
 	uu := map[string]struct {
 		m  map[string]interface{}
 		n  string
@@ -52,7 +81,7 @@ func TestExtractSlice(t *testing.T) {
 	for k := range uu {
 		u := uu[k]
 		t.Run(k, func(t *testing.T) {
-			ss, e := extractSlice(u.m, u.n, ee)
+			ss, e := extractStrSlice(u.m, u.n, ee)
 			assert.Equal(t, u.ee, e)
 			assert.Equal(t, u.nn, ss)
 		})
@@ -85,6 +114,36 @@ func TestExtractString(t *testing.T) {
 			as, ae := extractStr(u.m, u.n, ee)
 			assert.Equal(t, u.ee, ae)
 			assert.Equal(t, u.s, as)
+		})
+	}
+}
+
+func TestExtractBool(t *testing.T) {
+	uu := map[string]struct {
+		m  map[string]interface{}
+		n  string
+		b  bool
+		ee []error
+	}{
+		"plain": {
+			m: map[string]interface{}{"served": true},
+			n: "served",
+			b: true,
+		},
+		"missing": {
+			m:  map[string]interface{}{},
+			n:  "served",
+			ee: []error{fmt.Errorf("failed to extract bool served")},
+		},
+	}
+
+	var ee []error
+	for k := range uu {
+		u := uu[k]
+		t.Run(k, func(t *testing.T) {
+			as, ae := extractBool(u.m, u.n, ee)
+			assert.Equal(t, u.ee, ae)
+			assert.Equal(t, u.b, as)
 		})
 	}
 }
