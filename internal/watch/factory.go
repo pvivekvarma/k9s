@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/derailed/k9s/internal/client"
 	"github.com/rs/zerolog/log"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -17,11 +16,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	di "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
+
+	"github.com/derailed/k9s/internal/client"
 )
 
 const (
 	defaultResync   = 10 * time.Minute
-	defaultWaitTime = 250 * time.Millisecond
+	defaultWaitTime = 500 * time.Millisecond
 )
 
 // Factory tracks various resource informers.
@@ -47,7 +48,7 @@ func (f *Factory) Start(ns string) {
 	f.mx.Lock()
 	defer f.mx.Unlock()
 
-	log.Debug().Msgf("Factory START with ns `%q", ns)
+	log.Debug().Msgf("Factory START with ns %q", ns)
 	f.stopChan = make(chan struct{})
 	for ns, fac := range f.factories {
 		log.Debug().Msgf("Starting factory in ns %q", ns)
@@ -72,12 +73,12 @@ func (f *Factory) Terminate() {
 
 // List returns a resource collection.
 func (f *Factory) List(gvr, ns string, wait bool, labels labels.Selector) ([]runtime.Object, error) {
+	if client.IsAllNamespace(ns) {
+		ns = client.BlankNamespace
+	}
 	inf, err := f.CanForResource(ns, gvr, client.ListAccess)
 	if err != nil {
 		return nil, err
-	}
-	if client.IsAllNamespace(ns) {
-		ns = client.BlankNamespace
 	}
 
 	var oo []runtime.Object
@@ -110,6 +111,10 @@ func (f *Factory) HasSynced(gvr, ns string) (bool, error) {
 // Get retrieves a given resource.
 func (f *Factory) Get(gvr, fqn string, wait bool, sel labels.Selector) (runtime.Object, error) {
 	ns, n := namespaced(fqn)
+	if client.IsAllNamespace(ns) {
+		ns = client.BlankNamespace
+	}
+
 	inf, err := f.CanForResource(ns, gvr, []string{client.GetVerb})
 	if err != nil {
 		return nil, err
@@ -128,6 +133,7 @@ func (f *Factory) Get(gvr, fqn string, wait bool, sel labels.Selector) (runtime.
 	if client.IsClusterScoped(ns) {
 		return inf.Lister().Get(n)
 	}
+
 	return inf.Lister().ByNamespace(ns).Get(n)
 }
 

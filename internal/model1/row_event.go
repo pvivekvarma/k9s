@@ -6,6 +6,8 @@ package model1
 import (
 	"fmt"
 	"sort"
+
+	"github.com/rs/zerolog/log"
 )
 
 type ReRangeFn func(int, RowEvent) bool
@@ -255,7 +257,7 @@ func (r *RowEvents) FindIndex(id string) (int, bool) {
 
 // Sort rows based on column index and order.
 func (r *RowEvents) Sort(ns string, sortCol int, isDuration, numCol, isCapacity, asc bool) {
-	if sortCol == -1 {
+	if sortCol == -1 || r == nil {
 		return
 	}
 
@@ -270,6 +272,14 @@ func (r *RowEvents) Sort(ns string, sortCol int, isDuration, numCol, isCapacity,
 	}
 	sort.Sort(t)
 	r.reindex()
+}
+
+// For debguging...
+func (re RowEvents) Dump(msg string) {
+	log.Debug().Msg(msg)
+	for _, r := range re.events {
+		log.Debug().Msgf("!!YO!! %#v", r)
+	}
 }
 
 // ----------------------------------------------------------------------------
@@ -290,6 +300,7 @@ func (r RowEventSorter) Len() int {
 }
 
 func (r RowEventSorter) Swap(i, j int) {
+
 	r.Events.events[i], r.Events.events[j] = r.Events.events[j], r.Events.events[i]
 }
 
